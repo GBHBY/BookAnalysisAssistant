@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书境 · 智能对话</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+          rel="stylesheet">
+    <!-- 必须用站点根路径 /front/js/，避免相对路径在部分入口下指向 /js 导致 404、Markdown 不渲染 -->
+    <script src="/front/js/marked.min.js?v=2"></script>
+    <script src="/front/js/purify.min.js?v=2"></script>
+    <style>
+        :root {
+            --bg-deep: #0a0a14;
+            --bg-mesh: #0f0f23;
+            --primary: #4338ca;
+            --primary-glow: rgba(67, 56, 202, 0.45);
+            --accent: #22c55e;
+            --accent-soft: rgba(34, 197, 94, 0.15);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass: rgba(15, 15, 35, 0.65);
+            --glass-border: rgba(148, 163, 184, 0.12);
+            --radius-xl: 1.25rem;
+            --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: var(--font);
+            background: var(--bg-deep);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 动态背景：渐变光球 + 网格 */
+        .app-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(67, 56, 202, 0.35), transparent),
+            radial-gradient(ellipse 60% 40% at 100% 50%, rgba(34, 197, 94, 0.08), transparent),
+            radial-gradient(ellipse 50% 30% at 0% 80%, rgba(99, 102, 241, 0.2), transparent),
+            var(--bg-mesh);
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.55;
+            animation: float-orb 18s ease-in-out infinite;
+        }
+
+        .orb-a {
+            width: min(50vw, 420px);
+            height: min(50vw, 420px);
+            background: linear-gradient(135deg, #4338ca, #6366f1);
+            top: -10%;
+            left: 15%;
+        }
+
+        .orb-b {
+            width: min(40vw, 360px);
+            height: min(40vw, 360px);
+            background: linear-gradient(135deg, #059669, #22c55e);
+            bottom: 5%;
+            right: 10%;
+            animation-delay: -7s;
+        }
+
+        .orb-c {
+            width: min(35vw, 280px);
+            height: min(35vw, 280px);
+            background: #4f46e5;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            animation-delay: -12s;
+            opacity: 0.35;
+        }
+
+        @keyframes float-orb {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+            33% {
+                transform: translate(3%, 4%) scale(1.05);
+            }
+            66% {
+                transform: translate(-2%, 2%) scale(0.98);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .orb {
+                animation: none;
+            }
+        }
+
+        .grid-overlay {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
+            pointer-events: none;
+        }
+
+        .shell {
+            position: relative;
+            z-index: 1;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            max-width: min(1420px, 100%);
+            margin: 0 auto;
+            padding: clamp(8px, 2.4vw, 22px);
+            padding-bottom: env(safe-area-inset-bottom, 12px);
+        }
+
+        .layout-split {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+            gap: 0;
+            align-items: stretch;
+        }
+
+        .layout-main-column {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶栏 */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 8px;
+            margin-bottom: 4px;
+            border-radius: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 50%, #22c55e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 24px var(--primary-glow);
+        }
+
+        .brand-icon svg {
+            width: 22px;
+            height: 22px;
+            color: white;
+        }
+
+        .brand-text h1 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-text p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .session-pill {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            font-variant-numeric: tabular-nums;
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* 消息区 */
+        .layout-main-column .chat-scroll {
+            flex: 1;
+            min-height: 200px;
+        }
+
+        .chat-scroll {
+            flex: 1;
+            min-height: 200px;
+            overflow-y: auto;
+            max-width: 860px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 10px 8px 120px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.25);
+            border-radius: 6px;
+        }
+
+        .msg {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+            animation: msg-in 0.35s ease-out;
+        }
+
+        @keyframes msg-in {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .msg {
+                animation: none;
+            }
+        }
+
+        .msg.user {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            flex-shrink: 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .msg.assistant .avatar {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .msg.user .avatar {
+            background: rgba(22, 101, 52, 0.28);
+            border: 1px solid rgba(74, 222, 128, 0.26);
+        }
+
+        .avatar svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .bubble {
+            max-width: min(92%, 760px);
+            padding: 0;
+            border-radius: 0;
+            line-height: 1.72;
+            font-size: 1rem;
+            word-break: break-word;
+        }
+
+        .msg.assistant .bubble.bubble-md {
+            white-space: normal;
+        }
+
+        /* Markdown 内容（助手消息） */
+        .md-body > :first-child {
+            margin-top: 0;
+        }
+
+        .md-body > :last-child {
+            margin-bottom: 0;
+        }
+
+        .md-body p {
+            margin: 0.72em 0;
+            color: #e2e8f0;
+        }
+
+        .md-body h1, .md-body h2, .md-body h3, .md-body h4 {
+            margin: 1em 0 0.5em;
+            font-weight: 700;
+            line-height: 1.35;
+            color: var(--text);
+        }
+
+        .md-body h1 {
+            font-size: 1.25rem;
+        }
+
+        .md-body h2 {
+            font-size: 1.1rem;
+        }
+
+        .md-body h3, .md-body h4 {
+            font-size: 1rem;
+        }
+
+        .md-body strong {
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .md-body em {
+            font-style: italic;
+            color: #e2e8f0;
+        }
+
+        .md-body ul, .md-body ol {
+            margin: 0.5em 0;
+            padding-left: 1.35em;
+        }
+
+        .md-body li {
+            margin: 0.25em 0;
+        }
+
+        .md-body li::marker {
+            color: var(--text-muted);
+        }
+
+        .md-body blockquote {
+            margin: 0.75em 0;
+            padding: 0.5em 0 0.5em 1em;
+            border-left: 3px solid rgba(99, 102, 241, 0.55);
+            background: rgba(99, 102, 241, 0.08);
+            border-radius: 0 8px 8px 0;
+            color: #cbd5e1;
+        }
+
+        .md-body hr {
+            margin: 1em 0;
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
+        }
+
+        .md-body a {
+            color: #a5b4fc;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            cursor: pointer;
+        }
+
+        .md-body a:hover {
+            color: #c4b5fd;
+        }
+
+        .md-body code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.88em;
+            padding: 0.15em 0.45em;
+            border-radius: 6px;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            color: #e2e8f0;
+        }
+
+        .md-body pre {
+            margin: 0.75em 0;
+            padding: 12px 14px;
+            border-radius: 10px;
+            overflow-x: auto;
+            background: rgba(2, 6, 23, 0.55);
+            border: 1px solid var(--glass-border);
+            line-height: 1.5;
+        }
+
+        .md-body pre code {
+            padding: 0;
+            border: none;
+            background: transparent;
+            font-size: 0.85rem;
+            white-space: pre;
+            display: block;
+        }
+
+        /* 流式未完成内容：要自动换行，避免一行撑开横向滚动 */
+        .md-body pre.stream-rest,
+        .md-body pre.stream-plain {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            overflow-x: hidden;
+        }
+
+        .md-body table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.75em 0;
+            font-size: 0.9em;
+        }
+
+        .md-body th, .md-body td {
+            border: 1px solid var(--glass-border);
+            padding: 8px 10px;
+            text-align: left;
+        }
+
+        .md-body th {
+            background: rgba(99, 102, 241, 0.12);
+            font-weight: 600;
+        }
+
+        .msg.assistant .bubble {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .msg.user .bubble {
+            white-space: pre-wrap;
+            max-width: min(85%, 580px);
+            padding: 12px 16px;
+            border-radius: 18px;
+            background: rgba(51, 65, 85, 0.62);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .bubble.streaming::after {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 1em;
+            margin-left: 2px;
+            vertical-align: -2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s ease-in-out infinite;
+            border-radius: 2px;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 100% 0;
+                opacity: 0.4;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                background-position: -100% 0;
+                opacity: 0.4;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .bubble.streaming::after {
+                animation: none;
+                opacity: 0.8;
+            }
+        }
+
+        /* 助手消息：思考条 + 正文 */
+        .assistant-col {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .thinking-panel {
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.72);
+            overflow: hidden;
+        }
+
+        .thinking-panel[hidden] {
+            display: none !important;
+        }
+
+        .thinking-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #64748b;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .thinking-head svg {
+            flex-shrink: 0;
+            width: 14px;
+            height: 14px;
+            color: #818cf8;
+        }
+
+        .thinking-scroll {
+            margin: 0;
+            padding: 8px 11px 10px;
+            max-height: 148px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            font-size: 0.8125rem;
+            line-height: 1.5;
+            color: #94a3b8;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .thinking-panel.thinking-compact .thinking-scroll {
+            max-height: 2.75rem;
+            -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
+            mask-image: linear-gradient(to bottom, #000 45%, transparent);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .thinking-panel {
+                transition: none;
+            }
+        }
+
+        .empty-hint {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .empty-hint strong {
+            display: block;
+            font-size: 1.25rem;
+            color: var(--text);
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #e2e8f0, #a5b4fc, #22c55e);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* 底部输入 */
+        .composer-wrap {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            /* 高于引用遮罩 (20)，避免打开侧栏时输入区被整块压暗；低于侧栏 (22) 以便抽屉盖住底栏边缘 */
+            z-index: 21;
+            padding: 12px clamp(12px, 3vw, 24px) calc(12px + env(safe-area-inset-bottom, 0));
+            background: linear-gradient(to top, var(--bg-deep) 40%, transparent);
+            pointer-events: none;
+        }
+
+        .composer-wrap > * {
+            pointer-events: auto;
+        }
+
+        .composer-inner {
+            max-width: 860px;
+            margin: 0 auto;
+        }
+
+        .composer {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 22px;
+            /* 不用 backdrop-filter：与 fixed 祖先叠层时部分 WebKit/Chromium 会把整页糊成毛玻璃 */
+            background: rgba(15, 23, 42, 0.94);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08),
+            0 12px 40px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .composer:focus-within {
+            border-color: rgba(99, 102, 241, 0.45);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2),
+            0 0 32px rgba(67, 56, 202, 0.2),
+            0 12px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .composer textarea {
+            flex: 1;
+            min-height: 44px;
+            max-height: 160px;
+            resize: none;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9375rem;
+            line-height: 1.5;
+            padding: 10px 8px;
+            outline: none;
+        }
+
+        .composer textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn-send {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #6366f1, #4338ca);
+            color: white;
+            box-shadow: 0 4px 20px rgba(67, 56, 202, 0.45);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 28px rgba(67, 56, 202, 0.55);
+        }
+
+        .btn-send:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-send svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .error-toast {
+            margin-top: 8px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            background: rgba(220, 38, 38, 0.15);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            color: #fecaca;
+            display: none;
+        }
+
+        .error-toast.visible {
+            display: block;
+        }
+
+        .md-lib-warn {
+            margin-bottom: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #fecaca;
+            background: rgba(127, 29, 29, 0.35);
+            border: 1px solid rgba(248, 113, 113, 0.45);
+        }
+
+        .md-lib-warn code {
+            font-family: ui-monospace, monospace;
+            font-size: 0.85em;
+            padding: 0 4px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .md-lib-warn[hidden] {
+            display: none !important;
+        }
+
+        /* —— 知识库引用侧边栏（Reference Engine 风格，配色对齐书境） —— */
+        /* 遮罩与侧栏均不用 backdrop-filter：WebKit/部分 Chromium 在 fixed + transform 下会把整屏糊成毛玻璃 */
+        .ref-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            background: rgba(2, 6, 23, 0.5);
+            cursor: pointer;
+        }
+
+        .ref-backdrop.is-visible {
+            display: block;
+        }
+
+        /* 默认完全隐藏：不占主栏宽度，仅在被用户点开时从右侧滑入（桌面与移动端一致） */
+        .ref-sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: min(340px, 92vw);
+            max-width: 380px;
+            z-index: 22;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--glass-border);
+            /* 不透明底，避免 backdrop-filter + fixed 在部分浏览器里把整屏糊成毛玻璃 */
+            background: linear-gradient(180deg, #12101f 0%, #0c0b14 100%);
+            box-shadow: -8px 0 40px rgba(0, 0, 0, 0.45);
+            transform: translateX(100%);
+            transition: transform 0.28s ease;
+            pointer-events: none;
+        }
+
+        .ref-sidebar.is-open {
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .ref-sidebar-inner {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            max-height: 100vh;
+            max-height: 100dvh;
+        }
+
+        .ref-side-head {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .ref-side-head h2 {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #c4b5fd;
+        }
+
+        .ref-side-head p {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .ref-side-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .ref-side-close:hover {
+            color: var(--text);
+            border-color: rgba(99, 102, 241, 0.45);
+            background: rgba(99, 102, 241, 0.12);
+        }
+
+        .ref-side-close svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .ref-side-head-wrap {
+            position: relative;
+            padding-right: 44px;
+        }
+
+        .ref-tabs {
+            display: flex;
+            gap: 0;
+            padding: 0 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .ref-tab {
+            flex: 1;
+            padding: 10px 6px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .ref-tab:hover {
+            color: #a5b4fc;
+        }
+
+        .ref-tab.is-active {
+            color: #e0e7ff;
+            border-bottom-color: #6366f1;
+        }
+
+        .ref-panels {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .ref-panel {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 14px 16px;
+            gap: 12px;
+        }
+
+        .ref-panel.is-active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ref-panel::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .ref-panel::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.22);
+            border-radius: 6px;
+        }
+
+        .ref-empty {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            padding: 8px 4px;
+        }
+
+        .ref-card {
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.55);
+            padding: 12px 12px 10px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .ref-card:hover {
+            border-color: rgba(99, 102, 241, 0.35);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12);
+        }
+
+        .ref-card-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .ref-card-head svg {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            color: #7dd3fc;
+            margin-top: 2px;
+        }
+
+        .ref-card-meta {
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            line-height: 1.35;
+        }
+
+        .ref-card-body {
+            font-size: 0.8125rem;
+            line-height: 1.55;
+            color: #cbd5e1;
+            font-style: italic;
+            margin-bottom: 10px;
+            word-break: break-word;
+        }
+
+        .ref-card-foot {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .ref-source-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.45);
+            font-size: 0.8rem;
+            color: #e2e8f0;
+        }
+
+        .ref-source-row svg {
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            color: #818cf8;
+        }
+
+        .ref-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .ref-bar[hidden] {
+            display: none !important;
+        }
+
+        .ref-pills-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ref-pill {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: #e0e7ff;
+            border: 1px solid rgba(99, 102, 241, 0.45);
+            background: rgba(67, 56, 202, 0.18);
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .ref-pill:hover {
+            background: rgba(99, 102, 241, 0.28);
+            border-color: rgba(165, 180, 252, 0.55);
+        }
+
+        .ref-pill:focus-visible {
+            outline: 2px solid #6366f1;
+            outline-offset: 2px;
+        }
+
+        .ref-open-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #ecfdf5;
+            border: 1px solid rgba(34, 197, 94, 0.45);
+            background: rgba(34, 197, 94, 0.14);
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .ref-open-btn:hover {
+            background: rgba(34, 197, 94, 0.24);
+            border-color: rgba(74, 222, 128, 0.55);
+        }
+
+        .ref-open-btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .ref-open-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .ref-side-foot {
+            padding: 10px 14px 12px;
+            border-top: 1px solid var(--glass-border);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .ref-side-foot strong {
+            color: #a5b4fc;
+            font-weight: 600;
+        }
+
+        @media (max-width: 960px) {
+            .layout-split {
+                flex-direction: column;
+            }
+
+            .ref-sidebar {
+                width: min(100vw - 20px, 380px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ref-sidebar {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app-bg" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="grid-overlay"></div>
+</div>
+
+<div class="shell">
+    <div id="mdLibWarn" class="md-lib-warn" role="alert" hidden>
+        Markdown 组件未加载：请确认地址为 <code>/front/index.html</code>，并执行 <code>mvn compile</code> 后重启，使 <code>/front/js/*.js</code>
+        已打包进应用。
+    </div>
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                     stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                </svg>
+            </div>
+            <div class="brand-text">
+                <h1>书境 · 智能对话</h1>
+                <p>武侠小说知识助手 · 流式应答</p>
+            </div>
+        </div>
+        <span class="session-pill" id="sessionLabel" title="当前会话">会话加载中…</span>
+    </header>
+
+    <div class="layout-split">
+        <div class="layout-main-column">
+            <main class="chat-scroll" id="chatScroll" role="log" aria-live="polite" aria-relevant="additions">
+                <div class="empty-hint" id="emptyHint">
+                    <strong>开始一段对话</strong>
+                    输入关于武侠小说、人物、武功或门派的问题，回答将像 Gemini 一样逐字呈现。
+                </div>
+            </main>
+        </div>
+    </div>
+</div>
+
+<!-- 遮罩与侧栏必须在 .shell 外，否则 .shell 的 z-index 会把整块内容压在遮罩下面，backdrop-filter 会把侧栏一起糊掉 -->
+<div class="ref-backdrop" id="refBackdrop" aria-hidden="true"></div>
+<aside class="ref-sidebar" id="refSidebar" aria-label="知识库引用与来源">
+    <div class="ref-sidebar-inner">
+        <div class="ref-side-head ref-side-head-wrap">
+            <button type="button" class="ref-side-close" id="refSideClose" aria-label="关闭引用面板">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+            <h2>参考引擎</h2>
+            <p>知识库检索片段与来源对照</p>
+        </div>
+        <div class="ref-tabs" role="tablist" aria-label="引用视图">
+            <button type="button" class="ref-tab is-active" data-ref-tab="citations" role="tab" aria-selected="true">引用</button>
+            <button type="button" class="ref-tab" data-ref-tab="sources" role="tab" aria-selected="false">来源</button>
+            <button type="button" class="ref-tab" data-ref-tab="markers" role="tab" aria-selected="false">标记</button>
+        </div>
+        <div class="ref-panels">
+            <div id="refPanelCitations" class="ref-panel is-active" role="tabpanel" data-ref-panel="citations">
+                <p class="ref-empty" id="refEmptyCitations">尚未收到本轮知识库引用。助手调用检索后，片段将显示在此处。</p>
+            </div>
+            <div id="refPanelSources" class="ref-panel" role="tabpanel" data-ref-panel="sources">
+                <p class="ref-empty" id="refEmptySources">暂无独立来源列表。</p>
+            </div>
+            <div id="refPanelMarkers" class="ref-panel" role="tabpanel" data-ref-panel="markers">
+                <p class="ref-empty">可在此对照正文中的要点；后续可扩展为高亮标记。</p>
+            </div>
+        </div>
+        <div class="ref-side-foot">
+            <span>书境 · 本轮</span>
+            <strong id="refFootCount">0 条引用</strong>
+        </div>
+    </div>
+</aside>
+
+<div class="composer-wrap">
+    <div class="composer-inner">
+        <div class="composer">
+            <label for="userInput" class="visually-hidden">消息输入</label>
+            <textarea id="userInput" rows="1" placeholder="问问江湖事…" autocomplete="off"></textarea>
+            <button type="button" class="btn-send" id="btnSend" aria-label="发送">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"/>
+                </svg>
+            </button>
+        </div>
+        <div class="error-toast" id="errorToast" role="alert"></div>
+    </div>
+</div>
+
+<style>
+    .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+</style>
+
+<script>
+    (function () {
+        /** 若静态页用 file:// 打开，请改为后端地址，例如：'http://localhost:8080' */
+        const API_BASE = '';
+
+        function getOrCreateSessionId() {
+            return '24467372-2ee0-4645-bbf6-dbafaa3df43a';
+        }
+
+        const sessionId = getOrCreateSessionId();
+        const sessionLabel = document.getElementById('sessionLabel');
+        sessionLabel.textContent = '会话 ' + sessionId.slice(0, 8) + '…';
+
+        const chatScroll = document.getElementById('chatScroll');
+        const emptyHint = document.getElementById('emptyHint');
+        const userInput = document.getElementById('userInput');
+        const btnSend = document.getElementById('btnSend');
+        const errorToast = document.getElementById('errorToast');
+
+        const refSidebar = document.getElementById('refSidebar');
+        const refBackdrop = document.getElementById('refBackdrop');
+        const refSideClose = document.getElementById('refSideClose');
+        const refPanelCitations = document.getElementById('refPanelCitations');
+        const refEmptyCitations = document.getElementById('refEmptyCitations');
+        const refPanelSources = document.getElementById('refPanelSources');
+        const refEmptySources = document.getElementById('refEmptySources');
+        const refFootCount = document.getElementById('refFootCount');
+
+        const svgQuote = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/></svg>';
+        const svgBookmark = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/></svg>';
+        const svgBookOpen = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>';
+
+        function hideEmpty() {
+            if (emptyHint && emptyHint.parentNode) emptyHint.remove();
+        }
+
+        function scrollToBottom() {
+            chatScroll.scrollTop = chatScroll.scrollHeight;
+        }
+
+        const iconUser = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>';
+        const iconBot = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.847a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>';
+
+        function getMarkedParse() {
+            if (typeof marked === 'undefined') return null;
+            if (typeof marked.parse === 'function') return function (md, opt) {
+                return marked.parse(md, opt);
+            };
+            if (typeof marked === 'function') return function (md, opt) {
+                return marked(md, opt);
+            };
+            return null;
+        }
+
+        var mdParse = getMarkedParse();
+        var mdLibOk = mdParse != null
+            && typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function';
+        if (!mdLibOk) {
+            var w = document.getElementById('mdLibWarn');
+            if (w) w.hidden = false;
+            console.error('[书境] Markdown 依赖未就绪。请打开开发者工具 Network，确认 GET /front/js/marked.min.js 与 purify.min.js 状态为 200。');
+        } else if (typeof marked !== 'undefined' && marked.setOptions) {
+            marked.setOptions({breaks: true, gfm: true});
+        }
+
+        function normalizeNewline(raw) {
+            if (raw == null) return '';
+            return String(raw)
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                // 部分后端会把换行以字面量 \n 传回，这里只做换行还原，不做 Markdown 结构修补
+                .split('\\n').join('\n');
+        }
+
+        function isCodeBlockComplete(text) {
+            var matches = text.match(/```/g);
+            return !matches || (matches.length % 2 === 0);
+        }
+
+        function escapeHtml(raw) {
+            if (raw == null) return '';
+            var d = document.createElement('div');
+            d.textContent = raw;
+            return d.innerHTML;
+        }
+
+        /** @returns {number|null} 0–100 的匹配度展示；无法换算时返回 null */
+        function formatMatchPercent(score) {
+            if (score == null || typeof score !== 'number' || !isFinite(score)) {
+                return null;
+            }
+            if (score >= 0 && score <= 1) {
+                var pct = Math.round((1 - score) * 100);
+                return Math.max(0, Math.min(100, pct));
+            }
+            if (score > 1 && score <= 100) {
+                return Math.round(score);
+            }
+            var approx = Math.round(100 / (1 + Math.abs(score)));
+            return Math.max(0, Math.min(100, approx));
+        }
+
+        function openRefSidebar() {
+            if (!refSidebar || !refBackdrop) {
+                return;
+            }
+            refSidebar.classList.add('is-open');
+            refBackdrop.classList.add('is-visible');
+            refBackdrop.setAttribute('aria-hidden', 'false');
+            var cit = document.getElementById('refPanelCitations');
+            if (cit) {
+                cit.scrollTop = 0;
+            }
+        }
+
+        function closeRefSidebar() {
+            if (!refSidebar || !refBackdrop) {
+                return;
+            }
+            refSidebar.classList.remove('is-open');
+            refBackdrop.classList.remove('is-visible');
+            refBackdrop.setAttribute('aria-hidden', 'true');
+        }
+
+        function switchRefTab(tabName) {
+            if (!refSidebar) {
+                return;
+            }
+            refSidebar.querySelectorAll('.ref-tab').forEach(function (btn) {
+                var on = btn.getAttribute('data-ref-tab') === tabName;
+                btn.classList.toggle('is-active', on);
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            refSidebar.querySelectorAll('.ref-panel').forEach(function (panel) {
+                var key = panel.getAttribute('data-ref-panel');
+                var on = key === tabName;
+                panel.classList.toggle('is-active', on);
+            });
+        }
+
+        function resetRefSidebarForNewTurn() {
+            if (refPanelCitations) {
+                refPanelCitations.querySelectorAll('.ref-card').forEach(function (el) {
+                    el.remove();
+                });
+            }
+            if (refEmptyCitations) {
+                refEmptyCitations.hidden = false;
+            }
+            if (refPanelSources) {
+                refPanelSources.querySelectorAll('.ref-source-row').forEach(function (el) {
+                    el.remove();
+                });
+            }
+            if (refEmptySources) {
+                refEmptySources.hidden = false;
+            }
+            if (refFootCount) {
+                refFootCount.textContent = '0 条引用';
+            }
+            closeRefSidebar();
+        }
+
+        /**
+         * @param {Array<{docName?: string, snippet?: string, score?: number}>} refs
+         */
+        function renderKnowledgeRefsToSidebar(refs) {
+            if (!refPanelCitations || !refEmptyCitations) {
+                return;
+            }
+            refPanelCitations.querySelectorAll('.ref-card').forEach(function (el) {
+                el.remove();
+            });
+            if (!refs || refs.length === 0) {
+                refEmptyCitations.hidden = false;
+                if (refFootCount) {
+                    refFootCount.textContent = '0 条引用';
+                }
+                return;
+            }
+            refEmptyCitations.hidden = true;
+            if (refFootCount) {
+                refFootCount.textContent = refs.length + ' 条引用';
+            }
+            for (var i = 0; i < refs.length; i++) {
+                var r = refs[i] || {};
+                var docName = (r.docName != null && String(r.docName).trim()) ? String(r.docName).trim() : '知识库片段';
+                var snippet = r.snippet != null ? String(r.snippet) : '';
+                var pct = formatMatchPercent(typeof r.score === 'number' ? r.score : parseFloat(r.score));
+                var card = document.createElement('div');
+                card.className = 'ref-card';
+                var footHtml = pct != null
+                    ? '<div class="ref-card-foot">匹配度 ' + pct + '%</div>'
+                    : '<div class="ref-card-foot">检索片段</div>';
+                card.innerHTML =
+                    '<div class="ref-card-head">' + svgQuote +
+                    '<div class="ref-card-meta">来源 · ' + escapeHtml(docName) + '</div></div>' +
+                    '<div class="ref-card-body">' + escapeHtml(snippet) + '</div>' + footHtml;
+                refPanelCitations.appendChild(card);
+            }
+        }
+
+        function renderSourcesFromRefs(refs) {
+            if (!refPanelSources || !refEmptySources) {
+                return;
+            }
+            refPanelSources.querySelectorAll('.ref-source-row').forEach(function (el) {
+                el.remove();
+            });
+            if (!refs || refs.length === 0) {
+                refEmptySources.hidden = false;
+                return;
+            }
+            var seen = {};
+            var names = [];
+            for (var i = 0; i < refs.length; i++) {
+                var n = (refs[i] && refs[i].docName != null) ? String(refs[i].docName).trim() : '';
+                if (!n) {
+                    n = '未命名文档';
+                }
+                if (!seen[n]) {
+                    seen[n] = true;
+                    names.push(n);
+                }
+            }
+            if (names.length === 0) {
+                refEmptySources.hidden = false;
+                return;
+            }
+            refEmptySources.hidden = true;
+            for (var j = 0; j < names.length; j++) {
+                var row = document.createElement('div');
+                row.className = 'ref-source-row';
+                row.innerHTML = svgBookmark + '<span>' + escapeHtml(names[j]) + '</span>';
+                refPanelSources.appendChild(row);
+            }
+        }
+
+        /**
+         * @param {Array} refs
+         * @param {HTMLElement} refPillsWrap
+         * @param {HTMLButtonElement} refOpenBtn
+         * @param {HTMLElement} refBar
+         */
+        function applyReferencesToMessageRow(refs, refPillsWrap, refOpenBtn, refBar) {
+            var list = Array.isArray(refs) ? refs : [];
+            renderKnowledgeRefsToSidebar(list);
+            renderSourcesFromRefs(list);
+            switchRefTab('citations');
+            if (!refBar || !refPillsWrap || !refOpenBtn) {
+                return;
+            }
+            refPillsWrap.innerHTML = '';
+            if (list.length === 0) {
+                refBar.hidden = true;
+                refOpenBtn.hidden = true;
+                return;
+            }
+            refBar.hidden = false;
+            refOpenBtn.hidden = false;
+            var seen = {};
+            var pills = 0;
+            for (var i = 0; i < list.length && pills < 3; i++) {
+                var nm = (list[i] && list[i].docName != null) ? String(list[i].docName).trim() : '';
+                if (!nm) {
+                    nm = '片段 ' + (i + 1);
+                }
+                if (seen[nm]) {
+                    continue;
+                }
+                seen[nm] = true;
+                var pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = 'ref-pill';
+                pill.textContent = nm.length > 22 ? nm.slice(0, 20) + '…' : nm;
+                pill.title = nm;
+                pill.addEventListener('click', function () {
+                    switchRefTab('citations');
+                    openRefSidebar();
+                });
+                refPillsWrap.appendChild(pill);
+                pills++;
+            }
+        }
+
+        if (refBackdrop) {
+            refBackdrop.addEventListener('click', function () {
+                closeRefSidebar();
+            });
+        }
+        if (refSideClose) {
+            refSideClose.addEventListener('click', function () {
+                closeRefSidebar();
+            });
+        }
+        if (refSidebar) {
+            var refTabsEl = refSidebar.querySelector('.ref-tabs');
+            if (refTabsEl) {
+                refTabsEl.addEventListener('click', function (ev) {
+                    var btn = ev.target.closest('.ref-tab');
+                    if (!btn || !refSidebar.contains(btn)) {
+                        return;
+                    }
+                    var tab = btn.getAttribute('data-ref-tab');
+                    if (tab) {
+                        switchRefTab(tab);
+                    }
+                });
+            }
+        }
+
+        /**
+         * 将助手 Markdown 转为安全 HTML（DOMPurify），流式过程中未闭合语法可能短暂怪异，结束后会稳定。
+         */
+        function renderAssistantMarkdown(markdown) {
+            if (!markdown) {
+                return '<div class="md-body"></div>';
+            }
+
+            try {
+                const normalized = normalizeNewline(markdown);
+
+                const html = mdParse(normalized, {
+                    breaks: true,
+                    gfm: true
+                });
+
+                const clean = DOMPurify.sanitize(html);
+
+                return '<div class="md-body">' + clean + '</div>';
+
+            } catch (err) {
+                return '<div class="md-body">' + escapeHtml(markdown) + '</div>';
+            }
+        }
+
+        function renderAssistantPartial(text) {
+            const normalized = normalizeNewline(text);
+            if (!normalized) {
+                return '<div class="md-body"></div>';
+            }
+            if (!mdLibOk) {
+                return '<div class="md-body"><pre class="stream-plain">' + escapeHtml(normalized) + '</pre></div>';
+            }
+            // 代码块未闭合时，整段纯文本展示，避免结构错乱。
+            if (!isCodeBlockComplete(normalized)) {
+                return '<div class="md-body"><pre class="stream-plain">' + escapeHtml(normalized) + '</pre></div>';
+            }
+
+            try {
+                const parts = normalized.split('\n\n');
+                const complete = parts.slice(0, -1).join('\n\n');
+                const rest = parts[parts.length - 1] || '';
+
+                let html = '';
+                if (complete) {
+                    html += mdParse(complete, {breaks: true, gfm: true});
+                }
+                if (rest) {
+                    html += '<pre class="stream-rest">' + escapeHtml(rest) + '</pre>';
+                }
+                return '<div class="md-body">' + DOMPurify.sanitize(html) + '</div>';
+            } catch (err) {
+                return '<div class="md-body"><pre class="stream-plain">' + escapeHtml(normalized) + '</pre></div>';
+            }
+        }
+
+        /**
+         * 助手消息：左侧头像 + 纵向思考区 + 正文气泡。
+         * @returns {Element|{bubble: Element, thinkingPanel: Element, thinkingScroll: Element}}
+         */
+        function addMessage(role, text, options) {
+            hideEmpty();
+            const streaming = options && options.streaming;
+            const wrap = document.createElement('div');
+            wrap.className = 'msg ' + role + (streaming ? ' is-streaming' : '');
+
+            if (role === 'user') {
+                wrap.innerHTML =
+                    '<div class="avatar" aria-hidden="true">' + iconUser + '</div>' +
+                    '<div class="bubble' + (streaming ? ' streaming' : '') + '"></div>';
+                const bubble = wrap.querySelector('.bubble');
+                bubble.textContent = text || '';
+                chatScroll.appendChild(wrap);
+                scrollToBottom();
+                return bubble;
+            }
+
+            wrap.innerHTML = '<div class="avatar" aria-hidden="true">' + iconBot + '</div>';
+            const col = document.createElement('div');
+            col.className = 'assistant-col';
+
+            const thinkingPanel = document.createElement('div');
+            thinkingPanel.className = 'thinking-panel';
+            thinkingPanel.hidden = true;
+            thinkingPanel.setAttribute('aria-label', '思考过程');
+            thinkingPanel.innerHTML =
+                '<div class="thinking-head">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21"/>' +
+                '</svg><span>思考</span></div>' +
+                '<pre class="thinking-scroll" aria-live="polite"></pre>';
+            const thinkingScroll = thinkingPanel.querySelector('.thinking-scroll');
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble' + (streaming ? ' streaming' : '') + ' bubble-md';
+            bubble.innerHTML = streaming ? renderAssistantPartial('') : renderAssistantMarkdown(text || '');
+
+            const refBar = document.createElement('div');
+            refBar.className = 'ref-bar';
+            refBar.hidden = true;
+            refBar.setAttribute('aria-label', '知识库引用');
+            const refPillsWrap = document.createElement('div');
+            refPillsWrap.className = 'ref-pills-wrap';
+            const refOpenBtn = document.createElement('button');
+            refOpenBtn.type = 'button';
+            refOpenBtn.className = 'ref-open-btn';
+            refOpenBtn.hidden = true;
+            refOpenBtn.setAttribute('aria-label', '在侧栏查看全部知识库引用');
+            refOpenBtn.innerHTML = svgBookOpen + '<span>知识库引用</span>';
+            refOpenBtn.addEventListener('click', function () {
+                switchRefTab('citations');
+                openRefSidebar();
+            });
+            refBar.appendChild(refPillsWrap);
+            refBar.appendChild(refOpenBtn);
+
+            col.appendChild(thinkingPanel);
+            col.appendChild(bubble);
+            col.appendChild(refBar);
+            wrap.appendChild(col);
+            chatScroll.appendChild(wrap);
+            scrollToBottom();
+            return {
+                bubble: bubble,
+                thinkingPanel: thinkingPanel,
+                thinkingScroll: thinkingScroll,
+                refBar: refBar,
+                refPillsWrap: refPillsWrap,
+                refOpenBtn: refOpenBtn
+            };
+        }
+
+        /**
+         * @param {function(Object): void} onFrame 接收 { answer, answerType, references }
+         * @param {object|string} payload 完整 NDJSON 对象，或 (answer 字符串, answerType) 兼容旧调用
+         */
+        function pushAgentFrame(onFrame, payload, answerTypeLegacy) {
+            if (payload != null && typeof payload === 'object' && !Array.isArray(payload)
+                && ('answerType' in payload || 'answer' in payload || 'references' in payload)) {
+                var o = payload;
+                onFrame({
+                    answer: o.answer != null ? String(o.answer) : '',
+                    answerType: o.answerType != null ? String(o.answerType) : 'FINALLY_ANSWER',
+                    references: Array.isArray(o.references) ? o.references : null
+                });
+                return;
+            }
+            onFrame({
+                answer: payload != null ? String(payload) : '',
+                answerType: answerTypeLegacy != null ? String(answerTypeLegacy) : 'FINALLY_ANSWER',
+                references: null
+            });
+        }
+
+        /**
+         * 按行解析 NDJSON（Spring Flux&lt;AgentResponse&gt; 常见格式）。
+         */
+        async function consumeNdjsonBody(reader, decoder, onFrame) {
+            let buffer = '';
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) {
+                        continue;
+                    }
+                    try {
+                        const o = JSON.parse(line);
+                        if (o && typeof o === 'object' && ('answerType' in o || 'answer' in o || 'references' in o)) {
+                            pushAgentFrame(onFrame, o);
+                        }
+                    } catch (err) {
+                        console.warn('[书境] 跳过无法解析的 NDJSON 行');
+                    }
+                }
+            }
+            buffer += decoder.decode();
+            const tail = buffer.trim();
+            if (tail) {
+                try {
+                    const o = JSON.parse(tail);
+                    if (o && typeof o === 'object' && ('answerType' in o || 'answer' in o || 'references' in o)) {
+                        pushAgentFrame(onFrame, o);
+                    }
+                } catch (err) {
+                    console.warn('[书境] 流尾部非完整 JSON，已忽略');
+                }
+            }
+        }
+
+        function consumeNdjsonText(full, onFrame) {
+            if (!full) {
+                return;
+            }
+            const lines = full.split(/\r?\n/);
+            let anyAgent = false;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) {
+                    continue;
+                }
+                try {
+                    const o = JSON.parse(line);
+                    if (o && typeof o === 'object' && ('answerType' in o || 'answer' in o || 'references' in o)) {
+                        anyAgent = true;
+                        pushAgentFrame(onFrame, o);
+                    }
+                } catch (err) {
+                    /* ignore */
+                }
+            }
+            if (!anyAgent) {
+                pushAgentFrame(onFrame, full, 'FINALLY_ANSWER');
+            }
+        }
+
+        function showError(msg) {
+            errorToast.textContent = msg;
+            errorToast.classList.add('visible');
+            setTimeout(function () {
+                errorToast.classList.remove('visible');
+            }, 6000);
+        }
+
+        let sending = false;
+
+        /**
+         * 流式读取 GET /api/smart-chat/stream-chat。
+         * 每条事件为 { answer, answerType }；兼容 NDJSON、SSE(JSON)、纯文本降级。
+         */
+        async function streamChat(query, onFrame) {
+            var base = API_BASE;
+            if (!base) {
+                base = window.location.protocol === 'file:'
+                    ? 'http://localhost:8080'
+                    : window.location.origin;
+            }
+            const url = new URL('/api/smart-chat/stream-chat', base.replace(/\/$/, ''));
+            url.searchParams.set('query', query);
+            url.searchParams.set('sessionId', sessionId);
+
+            const res = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/x-ndjson, application/stream+json, application/json, text/event-stream, text/plain, */*'
+                }
+            });
+
+            if (!res.ok) {
+                const t = await res.text().catch(function () {
+                    return '';
+                });
+                throw new Error(res.status + ' ' + res.statusText + (t ? ': ' + t : ''));
+            }
+
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            const reader = res.body && res.body.getReader();
+            if (!reader) {
+                const full = await res.text();
+                consumeNdjsonText(full, onFrame);
+                return;
+            }
+
+            const decoder = new TextDecoder();
+            let sseBuf = '';
+
+            if (ct.indexOf('text/event-stream') >= 0) {
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    sseBuf += decoder.decode(value, {stream: true});
+                    const lines = sseBuf.split('\n');
+                    sseBuf = lines.pop() || '';
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (line.indexOf('data:') === 0) {
+                            const payload = line.slice(5).trimStart();
+                            if (payload && payload !== '[DONE]') {
+                                try {
+                                    const parsed = JSON.parse(payload);
+                                    if (parsed && typeof parsed === 'object' && ('answerType' in parsed || 'answer' in parsed || 'references' in parsed)) {
+                                        pushAgentFrame(onFrame, parsed);
+                                    } else if (typeof parsed === 'string') {
+                                        pushAgentFrame(onFrame, parsed, 'FINALLY_ANSWER');
+                                    } else if (parsed != null) {
+                                        pushAgentFrame(onFrame, String(parsed), 'FINALLY_ANSWER');
+                                    }
+                                } catch (err) {
+                                    pushAgentFrame(onFrame, payload, 'FINALLY_ANSWER');
+                                }
+                            }
+                        }
+                    }
+                }
+                sseBuf += decoder.decode();
+                return;
+            }
+
+            /* Spring Flux AgentResponse：按行 JSON（NDJSON）流式解析 */
+            await consumeNdjsonBody(reader, decoder, onFrame);
+        }
+
+        async function send() {
+            const text = userInput.value.trim();
+            if (!text || sending) return;
+
+            sending = true;
+            btnSend.disabled = true;
+            errorToast.classList.remove('visible');
+
+            resetRefSidebarForNewTurn();
+
+            addMessage('user', text);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+
+            const assistantUi = addMessage('assistant', '', {streaming: true});
+            const bubble = assistantUi.bubble;
+            const thinkingPanel = assistantUi.thinkingPanel;
+            const thinkingScroll = assistantUi.thinkingScroll;
+            const refBar = assistantUi.refBar;
+            const refPillsWrap = assistantUi.refPillsWrap;
+            const refOpenBtn = assistantUi.refOpenBtn;
+            let fullText = '';
+            let thinkingText = '';
+            let answerStarted = false;
+
+            function scrollThinkingToBottom() {
+                requestAnimationFrame(function () {
+                    thinkingScroll.scrollTop = thinkingScroll.scrollHeight;
+                });
+            }
+
+            try {
+                await streamChat(text, function (frame) {
+                    const t = frame.answerType || '';
+                    const a = frame.answer != null ? frame.answer : '';
+
+                    if (t === 'THINKING') {
+                        if (thinkingText.length > 0) {
+                            thinkingText += '\n\n';
+                        }
+                        thinkingText += a;
+                        thinkingPanel.hidden = false;
+                        thinkingScroll.textContent = thinkingText;
+                        scrollThinkingToBottom();
+                        scrollToBottom();
+                        return;
+                    }
+
+                    if (t === 'FINALLY_ANSWER') {
+                        if (!answerStarted && thinkingText.length > 0 && a.length > 0) {
+                            answerStarted = true;
+                            thinkingPanel.classList.add('thinking-compact');
+                        }
+                        fullText += a;
+                        bubble.innerHTML = renderAssistantPartial(fullText);
+                        scrollToBottom();
+                        return;
+                    }
+
+                    if (t === 'LINE_BREAK') {
+                        fullText += '\n';
+                        bubble.innerHTML = renderAssistantPartial(fullText);
+                        scrollToBottom();
+                        return;
+                    }
+
+                    if (t === 'REFERENCES') {
+                        var refList = Array.isArray(frame.references) ? frame.references : [];
+                        applyReferencesToMessageRow(refList, refPillsWrap, refOpenBtn, refBar);
+                        scrollToBottom();
+                        return;
+                    }
+
+                    if (t === 'FAIL') {
+                        throw new Error(a || '生成失败');
+                    }
+
+                    fullText += a;
+                    bubble.innerHTML = renderAssistantPartial(fullText);
+                    scrollToBottom();
+                });
+                bubble.innerHTML = renderAssistantMarkdown(fullText);
+                scrollToBottom();
+                bubble.classList.remove('streaming');
+            } catch (e) {
+                bubble.classList.remove('streaming');
+                bubble.classList.remove('bubble-md');
+                var errText = fullText
+                    ? fullText + '\n\n[错误] ' + (e && e.message ? e.message : String(e))
+                    : '请求失败：' + (e && e.message ? e.message : String(e));
+                bubble.textContent = errText;
+                showError(errText);
+            } finally {
+                sending = false;
+                btnSend.disabled = false;
+                scrollToBottom();
+            }
+        }
+
+        btnSend.addEventListener('click', function () {
+            send();
+        });
+
+        userInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        });
+
+        userInput.addEventListener('input', function () {
+            userInput.style.height = 'auto';
+            userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
+        });
+    })();
+</script>
+</body>
+</html>
