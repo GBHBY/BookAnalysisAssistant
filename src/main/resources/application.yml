@@ -1,0 +1,73 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    # MySQL 主数据源配置
+    primary:
+      url: jdbc:mysql://xxx:3306/my_ai?useSSL=false&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true
+      username: xx
+      password: xxx
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        connection-timeout: 30000
+        maximum-pool-size: 10
+        minimum-idle: 2
+    # PostgreSQL 向量数据源配置
+    vector:
+      url: jdbc:postgresql://xxx:5432/my_ai
+      username: xx
+      password: xx
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        connection-timeout: 30000
+        maximum-pool-size: 10
+        minimum-idle: 2
+  
+  jmx:
+    enabled: false
+  
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  
+  ai:
+    dashscope:
+      api-key: sk-xxxxxxx
+      chat:
+        options:
+          model: xxx
+    zhipuai:
+      api-key: xxxxx
+      chat:
+        options:
+          model: glm-5
+      embedding:
+        options:
+          dimensions: 512
+          model: xxx
+    chat:
+      memory:
+        repository:
+          jdbc:
+            platform: mysql
+            initialize-schema: always
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 512
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.book.analysis.assistant.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+app:
+  upload:
+    dir: ./uploads
