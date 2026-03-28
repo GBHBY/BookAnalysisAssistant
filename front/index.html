@@ -1410,19 +1410,17 @@
 
         /**
          * @param {Array} refs
-         * @param {HTMLElement} refPillsWrap
          * @param {HTMLButtonElement} refOpenBtn
          * @param {HTMLElement} refBar
          */
-        function applyReferencesToMessageRow(refs, refPillsWrap, refOpenBtn, refBar) {
+        function applyReferencesToMessageRow(refs, refOpenBtn, refBar) {
             var list = Array.isArray(refs) ? refs : [];
             renderKnowledgeRefsToSidebar(list);
             renderSourcesFromRefs(list);
             switchRefTab('citations');
-            if (!refBar || !refPillsWrap || !refOpenBtn) {
+            if (!refBar || !refOpenBtn) {
                 return;
             }
-            refPillsWrap.innerHTML = '';
             if (list.length === 0) {
                 refBar.hidden = true;
                 refOpenBtn.hidden = true;
@@ -1430,29 +1428,6 @@
             }
             refBar.hidden = false;
             refOpenBtn.hidden = false;
-            var seen = {};
-            var pills = 0;
-            for (var i = 0; i < list.length && pills < 3; i++) {
-                var nm = (list[i] && list[i].docName != null) ? String(list[i].docName).trim() : '';
-                if (!nm) {
-                    nm = '片段 ' + (i + 1);
-                }
-                if (seen[nm]) {
-                    continue;
-                }
-                seen[nm] = true;
-                var pill = document.createElement('button');
-                pill.type = 'button';
-                pill.className = 'ref-pill';
-                pill.textContent = nm.length > 22 ? nm.slice(0, 20) + '…' : nm;
-                pill.title = nm;
-                pill.addEventListener('click', function () {
-                    switchRefTab('citations');
-                    openRefSidebar();
-                });
-                refPillsWrap.appendChild(pill);
-                pills++;
-            }
         }
 
         if (refBackdrop) {
@@ -1582,8 +1557,6 @@
             refBar.className = 'ref-bar';
             refBar.hidden = true;
             refBar.setAttribute('aria-label', '知识库引用');
-            const refPillsWrap = document.createElement('div');
-            refPillsWrap.className = 'ref-pills-wrap';
             const refOpenBtn = document.createElement('button');
             refOpenBtn.type = 'button';
             refOpenBtn.className = 'ref-open-btn';
@@ -1594,7 +1567,6 @@
                 switchRefTab('citations');
                 openRefSidebar();
             });
-            refBar.appendChild(refPillsWrap);
             refBar.appendChild(refOpenBtn);
 
             col.appendChild(thinkingPanel);
@@ -1608,7 +1580,6 @@
                 thinkingPanel: thinkingPanel,
                 thinkingScroll: thinkingScroll,
                 refBar: refBar,
-                refPillsWrap: refPillsWrap,
                 refOpenBtn: refOpenBtn
             };
         }
@@ -1810,7 +1781,6 @@
             const thinkingPanel = assistantUi.thinkingPanel;
             const thinkingScroll = assistantUi.thinkingScroll;
             const refBar = assistantUi.refBar;
-            const refPillsWrap = assistantUi.refPillsWrap;
             const refOpenBtn = assistantUi.refOpenBtn;
             let fullText = '';
             let thinkingText = '';
@@ -1859,7 +1829,7 @@
 
                     if (t === 'REFERENCES') {
                         var refList = Array.isArray(frame.references) ? frame.references : [];
-                        applyReferencesToMessageRow(refList, refPillsWrap, refOpenBtn, refBar);
+                        applyReferencesToMessageRow(refList, refOpenBtn, refBar);
                         scrollToBottom();
                         return;
                     }

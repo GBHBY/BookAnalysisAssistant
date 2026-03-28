@@ -1,13 +1,20 @@
 # Book Analysis Assistant
 
-基于 Spring Boot 的图书 / 知识库问答助手：支持文本入库、向量检索（RAG）、多轮对话与智能对话（Agent）。
+基于 Spring Boot 的武侠小说知识库问答：入库向量化、检索、多轮对话、Agent 自动决定是否查库。
 
-## 功能概览
+## 主要功能
 
-- **RAG**：文档嵌入写入 PostgreSQL（pgvector），检索增强生成。
-- **对话**：多轮会话与历史持久化（JDBC Chat Memory）。
-- **模型**：集成阿里云 DashScope（通义）、智谱等（见 `pom.xml` 与配置）。
-- **前端**：静态页面对话界面（`src/main/resources/static/front`）。
+- **问题改写**：结合当前会话历史，用模型把用户问句改写成适合向量检索的一句话（补全指代、突出人名/门派/武功等关键词），作为「推荐查询」交给 Agent；实现见 `QueryService`、`SmartChatController`。
+- **RAG 检索**：Agent 可调用工具 `searchKnowledgeBase`，对查询做相似向量检索（pgvector），把命中文本片段拼进上下文再回答；实现见 `KnowledgeSearchTool`、`EmbeddingService`。
+- **历史压缩**：长对话可先摘要再进 Prompt，减轻上下文长度；实现见 `MemeryService`。
+- **工具与配额**：每轮对话限制知识库搜索次数（避免反复调工具）；实现见 `ToolCallQuotaService`。
+- **引用收集**：工具返回的文档片段可汇总，便于前端展示来源；实现见 `TurnCitationCollector`。
+- **流式对话**：`GET /api/smart-chat/stream-chat`，NDJSON 流式返回（含思考类节点与最终回答）。
+- **向量入库**：文本/文件走嵌入写入向量库；另有 `GET /api/embedding/import/file` 按路径导入。文档上传与元数据见 `RAGService`（部分检索链路仍可按 DashScope 能力扩展）。
+- **意图识别**：`IntentRecognitionService` 可按用户说法归类（订单/知识/闲聊等），供其它流程接入。
+- **会话持久化**：多轮历史存 MySQL，Spring AI JDBC Chat Memory；前端静态页在 `src/main/resources/static/front`（与仓库根目录 `front` 对应资源一致时可同步）。
+
+**模型**：通义（DashScope）、智谱等，依赖与版本见 `pom.xml`。
 
 ## 技术栈
 
