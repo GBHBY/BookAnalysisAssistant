@@ -14,7 +14,7 @@
         <file>logs/application.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/application.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>30</maxHistory>
+            <maxHistory>2</maxHistory>
         </rollingPolicy>
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
@@ -32,5 +32,6 @@
     <!-- 根日志级别 -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
     </root>
 </configuration>

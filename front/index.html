@@ -672,6 +672,79 @@
             height: 20px;
         }
 
+        .btn-embed-upload {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(67, 56, 202, 0.08));
+            border: 1.5px solid rgba(99, 102, 241, 0.35);
+            color: rgba(165, 180, 252, 0.95);
+            transition: all 0.2s ease;
+        }
+
+        .btn-embed-upload:hover:not(:disabled) {
+            border-color: rgba(99, 102, 241, 0.65);
+            color: #c7d2fe;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(67, 56, 202, 0.15));
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-embed-upload:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        .btn-embed-upload:disabled {
+            cursor: wait;
+            border-color: rgba(99, 102, 241, 0.45);
+            color: rgba(165, 180, 252, 0.65);
+        }
+
+        .btn-embed-upload svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-embed-icon-plus {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-embed-icon-spin {
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-embed-icon-spin.is-active {
+            display: flex;
+        }
+
+        .btn-embed-icon-spin svg {
+            animation: embed-upload-spin 0.8s linear infinite;
+        }
+
+        @keyframes embed-upload-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn-embed-icon-spin svg {
+                animation-duration: 1.4s;
+            }
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
         .error-toast {
             margin-top: 8px;
             padding: 10px 14px;
@@ -685,6 +758,12 @@
 
         .error-toast.visible {
             display: block;
+        }
+
+        .error-toast.toast-success {
+            background: rgba(22, 163, 74, 0.18);
+            border-color: rgba(74, 222, 128, 0.4);
+            color: #bbf7d0;
         }
 
         .md-lib-warn {
@@ -1087,7 +1166,7 @@
             </div>
             <div class="brand-text">
                 <h1>书境 · 智能对话</h1>
-                <p>武侠小说知识助手 · 流式应答</p>
+                <p>书籍知识助手 · 流式应答</p>
             </div>
         </div>
         <span class="session-pill" id="sessionLabel" title="当前会话">会话加载中…</span>
@@ -1098,7 +1177,7 @@
             <main class="chat-scroll" id="chatScroll" role="log" aria-live="polite" aria-relevant="additions">
                 <div class="empty-hint" id="emptyHint">
                     <strong>开始一段对话</strong>
-                    输入关于武侠小说、人物、武功或门派的问题，回答将像 Gemini 一样逐字呈现。
+                    输入关于您上传过的书籍内容相关问题，回答将像 Gemini 一样逐字呈现。
                 </div>
             </main>
         </div>
@@ -1144,8 +1223,22 @@
 <div class="composer-wrap">
     <div class="composer-inner">
         <div class="composer">
+            <input type="file" id="fileEmbedInput" class="visually-hidden" accept="application/pdf,.pdf" />
+            <button type="button" class="btn-embed-upload" id="btnEmbedUpload" aria-label="上传 PDF 向量入库" title="上传 PDF 向量入库">
+                <span class="btn-embed-icon btn-embed-icon-plus" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                </span>
+                <span class="btn-embed-icon btn-embed-icon-spin" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10" stroke-opacity="0.2"/>
+                        <path d="M22 12a10 10 0 1 0-10-10"/>
+                    </svg>
+                </span>
+            </button>
             <label for="userInput" class="visually-hidden">消息输入</label>
-            <textarea id="userInput" rows="1" placeholder="问问江湖事…" autocomplete="off"></textarea>
+            <textarea id="userInput" rows="1" placeholder="问问你想知道的…" autocomplete="off"></textarea>
             <button type="button" class="btn-send" id="btnSend" aria-label="发送">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"/>
@@ -1187,6 +1280,8 @@
         const emptyHint = document.getElementById('emptyHint');
         const userInput = document.getElementById('userInput');
         const btnSend = document.getElementById('btnSend');
+        const btnEmbedUpload = document.getElementById('btnEmbedUpload');
+        const fileEmbedInput = document.getElementById('fileEmbedInput');
         const errorToast = document.getElementById('errorToast');
 
         const refSidebar = document.getElementById('refSidebar');
@@ -1674,13 +1769,85 @@
             }
         }
 
+        function resolveApiBase() {
+            var base = API_BASE;
+            if (!base) {
+                base = window.location.protocol === 'file:'
+                    ? 'http://localhost:8080'
+                    : window.location.origin;
+            }
+            return base.replace(/\/$/, '');
+        }
+
         function showError(msg) {
             errorToast.textContent = msg;
+            errorToast.classList.remove('toast-success');
             errorToast.classList.add('visible');
             setTimeout(function () {
                 errorToast.classList.remove('visible');
             }, 6000);
         }
+
+        function showSuccessToast(msg) {
+            errorToast.textContent = msg;
+            errorToast.classList.add('visible', 'toast-success');
+            setTimeout(function () {
+                errorToast.classList.remove('visible', 'toast-success');
+            }, 4500);
+        }
+
+        let embeddingUploading = false;
+
+        function setEmbedUploadUi(busy) {
+            embeddingUploading = busy;
+            btnEmbedUpload.disabled = busy;
+            const iconPlus = btnEmbedUpload.querySelector('.btn-embed-icon-plus');
+            const iconSpin = btnEmbedUpload.querySelector('.btn-embed-icon-spin');
+            if (busy) {
+                iconPlus.style.display = 'none';
+                iconSpin.classList.add('is-active');
+            } else {
+                iconPlus.style.display = 'flex';
+                iconSpin.classList.remove('is-active');
+            }
+        }
+
+        btnEmbedUpload.addEventListener('click', function () {
+            if (embeddingUploading) {
+                return;
+            }
+            fileEmbedInput.click();
+        });
+
+        fileEmbedInput.addEventListener('change', function () {
+            var file = fileEmbedInput.files && fileEmbedInput.files[0];
+            fileEmbedInput.value = '';
+            if (!file) {
+                return;
+            }
+            var lower = (file.name || '').toLowerCase();
+            if (!lower.endsWith('.pdf')) {
+                showError('请上传 PDF 文件');
+                return;
+            }
+            setEmbedUploadUi(true);
+            var fd = new FormData();
+            fd.append('file', file, file.name);
+            var url = resolveApiBase() + '/api/embedding/import/upload';
+            fetch(url, {method: 'POST', body: fd})
+                .then(function (res) {
+                    if (!res.ok) {
+                        throw new Error(res.status === 400 ? '仅支持 PDF 或文件无效' : '导入失败（' + res.status + '）');
+                    }
+                    showSuccessToast('「' + (file.name || '文档') + '」已提交解析并入库');
+                })
+                .catch(function (err) {
+                    showError(err && err.message ? err.message : String(err));
+                })
+                .finally(function () {
+                    setEmbedUploadUi(false);
+                });
+        });
 
         let sending = false;
 
@@ -1689,13 +1856,7 @@
          * 每条事件为 { answer, answerType }；兼容 NDJSON、SSE(JSON)、纯文本降级。
          */
         async function streamChat(query, onFrame) {
-            var base = API_BASE;
-            if (!base) {
-                base = window.location.protocol === 'file:'
-                    ? 'http://localhost:8080'
-                    : window.location.origin;
-            }
-            const url = new URL('/api/smart-chat/stream-chat', base.replace(/\/$/, ''));
+            const url = new URL('/api/smart-chat/stream-chat', resolveApiBase());
             url.searchParams.set('query', query);
             url.searchParams.set('sessionId', sessionId);
 

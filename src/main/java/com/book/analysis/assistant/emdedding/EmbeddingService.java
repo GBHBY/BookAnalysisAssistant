@@ -16,12 +16,15 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.zhipuai.ZhiPuAiEmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 文本切分、Embedding 计算并写入 PG Vector.
@@ -48,6 +51,10 @@ public class EmbeddingService {
     @Qualifier("vectorStoreSplit")
     @Autowired
     private VectorStore vectorStoreSplit;
+
+    @Lazy
+    @Autowired
+    private DocumentMetadataService documentMetadataService;
 
 
     /**
@@ -104,22 +111,29 @@ public class EmbeddingService {
      *
      * @param query            查询文本
      * @param topK             返回最相似的前 K 个结果
-     * @param filterExpression 过滤表达式，例如: "category == 'tech'"
+     * @param filterExpression 过滤条件 Map，支持字段：domain、category、keywords等
      * @return 相似文档列表
      */
-    public List<Document> searchSimilarWithFilter(String query, int topK, String filterExpression) {
+    public List<Document> searchSimilarWithFilter(String query, int topK, Map<String, Object> filterExpression) {
         log.info("执行向量搜索（带过滤），查询: {}, topK: {}, filter: {}", query, topK, filterExpression);
 
-        SearchRequest searchRequest = SearchRequest.builder()
-                .query(query)
-                .topK(topK)
-                .build();
+        // 转换 Map 为 pgvector 支持的过滤表达式
+        String pgvectorFilter = FilterExpressionBuilder.buildFilter(filterExpression);
+        log.info("转换后的过滤表达式: {}", pgvectorFilter);
 
-        List<Document> results = vectorStoreSplit.similaritySearch(searchRequest);
+        SearchRequest.Builder builder = SearchRequest.builder()
+                .query(query)
+                .topK(topK);
+        
+        // 只在过滤表达式不为空时添加
+        if (StringUtils.isNotBlank(pgvectorFilter)) {
+            builder.filterExpression(pgvectorFilter);
+        }
+
+        List<Document> results = vectorStoreSplit.similaritySearch(builder.build());
         List<String> list = results.stream().map(Document::getText).toList();
 
         log.info("结果：{}", list);
-
         log.info("搜索完成，找到 {} 个相似文档", results.size());
 
         return results;
@@ -139,10 +153,21 @@ public class EmbeddingService {
         log.info("源文件大小:{}：文本：{}", documentList.size(), documentList);
         List<Document> cleanResult = cleanFile(documentList);
         log.info("清洗后，大小:{}, 文本:{}", cleanResult.size(), cleanResult);
+        
+        // 提取文档元数据（仅从第一个文档提取）
+        DocumentMetadata metadata = null;
+        if (!cleanResult.isEmpty()) {
+            String firstPageText = cleanResult.get(0).getText();
+            metadata = documentMetadataService.extractMetadata(firstPageText);
+            log.info("提取的文档元数据: {}", metadata);
+        }
+        
         List<Document> intelligentSplitFile = intelligentSplitFile(cleanResult);
         log.info("读取完成,开始进行插入到向量库");
-        for (List<Document> documents : ListUtil.partition(intelligentSplitFile, 1)) {
-            vectorStoreSplit.add(documents);
+        for (List<Document> documents : ListUtil.partition(intelligentSplitFile, 5)) {
+            // 为每个文档块添加元数据
+            List<Document> docsWithMetadata = enrichDocumentsWithMetadata(documents, metadata);
+            vectorStoreSplit.add(docsWithMetadata);
         }
         // 将文档添加到向量存储
         log.info("插入向量库完成");
@@ -156,6 +181,34 @@ public class EmbeddingService {
             text = text.replaceAll("\\n+", "\n");
             Document resultDocument = new Document(document.getId(), text, document.getMetadata());
             result.add(resultDocument);
+        }
+        return result;
+    }
+
+    /**
+     * 为文档块添加元数据信息
+     * 
+     * @param documents 文档块列表
+     * @param metadata 提取的元数据
+     * @return 添加了元数据的文档列表
+     */
+    private List<Document> enrichDocumentsWithMetadata(List<Document> documents, DocumentMetadata metadata) {
+        if (metadata == null) {
+            return documents;
+        }
+
+        List<Document> result = new ArrayList<>(256);
+        for (Document doc : documents) {
+            Map<String, Object> enrichedMetadata = new HashMap<>(doc.getMetadata());
+            
+            // 添加提取的元数据信息
+            enrichedMetadata.put("domain", metadata.getDomain());
+            enrichedMetadata.put("category", metadata.getCategory());
+            enrichedMetadata.put("keywords", metadata.getKeywords());
+            enrichedMetadata.put("summary", metadata.getSummary());
+            
+            Document enrichedDoc = new Document(doc.getId(), doc.getText(), enrichedMetadata);
+            result.add(enrichedDoc);
         }
         return result;
     }
