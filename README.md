@@ -4,9 +4,12 @@
 
 ## 演示视频
 
-项目示例视频：[`示例.mp4`](./示例.mp4)
 
-如果当前平台无法直接预览，可点击链接后下载查看。
+
+
+https://github.com/user-attachments/assets/16f6745a-9e28-4e6b-9ffe-f73a92da5438
+
+
 
 ## 主要功能
 
